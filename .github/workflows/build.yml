@@ -35,11 +35,11 @@ jobs:
       - name: Build macOS app
         run: |
           python -m PyInstaller --name=jieqin_game --windowed \
-            --add-data "project/index.html:." \
-            --add-data "project/game.js:." \
-            --add-data "project/style.css:." \
-            --add-data "project/qwebchannel.js:." \
-            --add-data "project/imgs:imgs" \
+            --add-data "project/project/index.html:." \
+            --add-data "project/project/game.js:." \
+            --add-data "project/project/style.css:." \
+            --add-data "project/project/qwebchannel.js:." \
+            --add-data "project/project/imgs:imgs" \
             --hidden-import=PyQt6 \
             --hidden-import=PyQt6.QtWidgets \
             --hidden-import=PyQt6.QtWebEngineWidgets \
@@ -47,7 +47,7 @@ jobs:
             --hidden-import=tinycc \
             --collect-all=PyQt6 \
             --collect-all=tinycc \
-            project/py/main.py
+            project/project/py/main.py
 
       - name: Package as ZIP
         run: |
@@ -84,13 +84,13 @@ jobs:
       - name: Build Windows exe
         run: |
           python -m PyInstaller --name=jieqin_game --windowed \
-            --add-data "project/index.html;." \
-            --add-data "project/game.js;." \
-            --add-data "project/style.css;." \
-            --add-data "project/qwebchannel.js;." \
-            --add-data "project/imgs;imgs" \
+            --add-data "project/project/index.html;." \
+            --add-data "project/project/game.js;." \
+            --add-data "project/project/style.css;." \
+            --add-data "project/project/qwebchannel.js;." \
+            --add-data "project/project/imgs;imgs" \
             --collect-all PyQt6 --collect-all tinycc \
-            project/py/main.py
+            project/project/py/main.py
 
       - name: Package as ZIP
         run: |
