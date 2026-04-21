@@ -1,106 +1,312 @@
-name: Build Releases
+name: Build All Platforms
 
 on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
-    inputs:
-      platform:
-        description: 'Target Platform'
-        required: true
-        default: 'macos'
-        type: choice
-        options:
-          - macos
-          - windows
+
+env:
+  APP_NAME: jieqin_game
+  PYTHON_VERSION: '3.11'
+  PROJECT_DIR: project/project
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  build-macos:
-    if: github.event.inputs.platform == 'macos'
-    runs-on: macos-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install pyinstaller PyQt6 tinycc
-
-      - name: Build macOS app
-        run: |
-          python -m PyInstaller --name=jieqin_game --windowed \
-            --add-data "project/project/index.html:." \
-            --add-data "project/project/game.js:." \
-            --add-data "project/project/style.css:." \
-            --add-data "project/project/qwebchannel.js:." \
-            --add-data "project/project/imgs:imgs" \
-            --hidden-import=PyQt6 \
-            --hidden-import=PyQt6.QtWidgets \
-            --hidden-import=PyQt6.QtWebEngineWidgets \
-            --hidden-import=PyQt6.QtWebChannel \
-            --hidden-import=tinycc \
-            --collect-all=PyQt6 \
-            --collect-all=tinycc \
-            project/project/py/main.py
-
-      - name: Package as ZIP
-        run: |
-          cd dist
-          zip -r jieqin_game_macos.zip jieqin_game.app
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: macos-v1.0
-          release_name: macOS Build
-          files: dist/jieqin_game_macos.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+  # ── Windows ────────────────────────────────────────────────────────
   build-windows:
-    if: github.event.inputs.platform == 'windows'
     runs-on: windows-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-    
-    steps:
-      - uses: actions/checkout@v4
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_DIR }}
 
-      - name: Set up Python
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-win-${{ hashFiles(format('{0}/requirements.txt', env.PROJECT_DIR), format('{0}/jieqin_game_windows.spec', env.PROJECT_DIR)) }}
+          restore-keys: pip-win-
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip setuptools wheel
           pip install pyinstaller PyQt6 tinycc
 
-      - name: Build Windows exe
+      - name: Build Windows App (onedir)
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
-          python -m PyInstaller --name=jieqin_game --windowed \
-            --add-data "project/project/index.html;." \
-            --add-data "project/project/game.js;." \
-            --add-data "project/project/style.css;." \
-            --add-data "project/project/qwebchannel.js;." \
-            --add-data "project/project/imgs;imgs" \
-            --collect-all PyQt6 --collect-all tinycc \
-            project/project/py/main.py
+          pyinstaller jieqin_game_windows.spec
 
-      - name: Package as ZIP
+      - name: Verify output
         run: |
-          Compress-Archive -Path "dist\jieqin_game" -DestinationPath "dist\jieqin_game_windows.zip"
+          if (Test-Path "dist\jieqin_game\jieqin_game.exe") {
+              Write-Host "Build successful"
+              Get-Item "dist\jieqin_game\jieqin_game.exe" | Select-Object Name, Length
+          } else {
+              Write-Host "ERROR: exe not found"
+              Get-ChildItem dist -Recurse -File | Select-Object FullName
+              exit 1
+          }
 
-      - name: Upload Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: windows-v1.0
-          release_name: Windows Build
-          files: dist/jieqin_game_windows.zip
+          name: ${{ env.APP_NAME }}-windows
+          path: project/project/dist/jieqin_game/
+          retention-days: 30
+
+  # ── macOS x86_64 ──────────────────────────────────────────────────
+  build-macos-x86:
+    runs-on: macos-13
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: pip-macos-13-${{ hashFiles(format('{0}/requirements.txt', env.PROJECT_DIR), format('{0}/jieqin_game_macos.spec', env.PROJECT_DIR)) }}
+          restore-keys: pip-macos-13-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install pyinstaller PyQt6 tinycc
+
+      - name: Build macOS App (onedir, x86_64)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          pyinstaller jieqin_game_macos.spec
+
+      - name: Verify output
+        run: |
+          if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
+            echo "Build successful"
+            ls -la "dist/${{ env.APP_NAME }}.app"
+            SIZE=$(du -sh "dist/${{ env.APP_NAME }}.app" | cut -f1)
+            echo "App size: $SIZE"
+          else
+            echo "ERROR: App not found"
+            ls -la dist/
+            exit 1
+          fi
+
+      - name: Upload macOS x86_64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macos-x86_64
+          path: project/project/dist/${{ env.APP_NAME }}.app
+          retention-days: 30
+
+  # ── macOS arm64 ───────────────────────────────────────────────────
+  build-macos-arm:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: pip-macos-14-${{ hashFiles(format('{0}/requirements.txt', env.PROJECT_DIR), format('{0}/jieqin_game_macos.spec', env.PROJECT_DIR)) }}
+          restore-keys: pip-macos-14-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install pyinstaller PyQt6 tinycc
+
+      - name: Build macOS App (onedir, arm64)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          pyinstaller jieqin_game_macos.spec
+
+      - name: Verify output
+        run: |
+          if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
+            echo "Build successful"
+            ls -la "dist/${{ env.APP_NAME }}.app"
+            SIZE=$(du -sh "dist/${{ env.APP_NAME }}.app" | cut -f1)
+            echo "App size: $SIZE"
+          else
+            echo "ERROR: App not found"
+            ls -la dist/
+            exit 1
+          fi
+
+      - name: Upload macOS arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macos-arm64
+          path: project/project/dist/${{ env.APP_NAME }}.app
+          retention-days: 30
+
+  # ── macOS Universal (Intel + Apple Silicon) ────────────────────────
+  build-macos-universal:
+    needs: [build-macos-x86, build-macos-arm]
+    runs-on: macos-14
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: true
+
+      - name: Find artifacts
+        run: |
+          echo "Available artifacts:"
+          find artifacts -type d -name "*.app" | head -20
+
+      - name: Create universal binary
+        run: |
+          INTEL_APP=$(find artifacts -type d -name "${{ env.APP_NAME }}.app" | grep "macos-x86_64" | head -1)
+          ARM_APP=$(find artifacts -type d -name "${{ env.APP_NAME }}.app" | grep "macos-arm64" | head -1)
+          UNIVERSAL_APP="dist/${{ env.APP_NAME }}-universal.app"
+
+          echo "Intel app: $INTEL_APP"
+          echo "ARM app: $ARM_APP"
+
+          if [ -n "$INTEL_APP" ] && [ -n "$ARM_APP" ]; then
+            INTEL_BIN="$INTEL_APP/Contents/MacOS/${{ env.APP_NAME }}"
+            ARM_BIN="$ARM_APP/Contents/MacOS/${{ env.APP_NAME }}"
+            UNIVERSAL_BIN="dist/${{ env.APP_NAME }}-universal.app/Contents/MacOS/${{ env.APP_NAME }}"
+
+            mkdir -p dist
+            cp -r "$ARM_APP" "$UNIVERSAL_APP"
+
+            if [ -f "$INTEL_BIN" ] && [ -f "$ARM_BIN" ]; then
+              lipo -create "$INTEL_BIN" "$ARM_BIN" -output "$UNIVERSAL_BIN"
+              echo "Created universal binary (Intel + ARM)"
+              lipo -info "$UNIVERSAL_BIN"
+            else
+              echo "Binary files not found, copying ARM version"
+            fi
+          else
+            echo "Cannot create universal binary (missing artifacts)"
+            ls -la artifacts/
+            exit 1
+          fi
+
+      - name: Verify universal app
+        run: |
+          if [ -d "dist/${{ env.APP_NAME }}-universal.app" ]; then
+            echo "Universal app created"
+            ls -la "dist/${{ env.APP_NAME }}-universal.app"
+            lipo -info "dist/${{ env.APP_NAME }}-universal.app/Contents/MacOS/${{ env.APP_NAME }}"
+          fi
+
+      - name: Upload universal app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macos-universal
+          path: dist/${{ env.APP_NAME }}-universal.app
+          retention-days: 30
+
+  # ── Release (on git tag) ──────────────────────────────────────────
+  release:
+    needs: [build-windows, build-macos-universal]
+    runs-on: macos-14
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: true
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+
+          # Find and copy Windows
+          WIN_DIR=$(find artifacts -type d -name "${{ env.APP_NAME }}" | grep windows | head -1)
+          if [ -n "$WIN_DIR" ] && [ -d "$WIN_DIR" ]; then
+            cp -r "$WIN_DIR" "release/${{ env.APP_NAME }}-windows/"
+            cd release
+            powershell -Command "Compress-Archive -Path '${{ env.APP_NAME }}-windows/*' -DestinationPath '${{ env.APP_NAME }}-windows.zip' -Force"
+            echo "Windows zip created"
+          fi
+
+          # Find and copy macOS arm64
+          ARM_APP=$(find artifacts -type d -name "${{ env.APP_NAME }}.app" | grep "macos-arm64" | head -1)
+          if [ -n "$ARM_APP" ]; then
+            cp -r "$ARM_APP" "release/${{ env.APP_NAME }}-macos-arm64.app"
+            cd release
+            zip -r "${{ env.APP_NAME }}-macos-arm64.zip" "${{ env.APP_NAME }}-macos-arm64.app"
+            hdiutil create -volname "${{ env.APP_NAME }}" -srcfolder "${{ env.APP_NAME }}-macos-arm64.app" -ov -format UDZO "${{ env.APP_NAME }}-macos-arm64.dmg"
+            echo "macOS arm64 release created"
+          fi
+
+          # Find and copy macOS universal
+          UNI_APP=$(find artifacts -type d -name "${{ env.APP_NAME }}-universal.app" | head -1)
+          if [ -n "$UNI_APP" ]; then
+            cp -r "$UNI_APP" "release/${{ env.APP_NAME }}-macos-universal.app"
+            cd release
+            zip -r "${{ env.APP_NAME }}-macos-universal.zip" "${{ env.APP_NAME }}-macos-universal.app"
+            hdiutil create -volname "${{ env.APP_NAME }}" -srcfolder "${{ env.APP_NAME }}-macos-universal.app" -ov -format UDZO "${{ env.APP_NAME }}-macos-universal.dmg"
+            echo "macOS universal release created"
+          fi
+
+          echo "Release files:"
+          ls -lh release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref }}
+          name: ${{ env.APP_NAME }} ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release/*.zip
+            release/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
