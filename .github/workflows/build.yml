@@ -19,13 +19,13 @@ jobs:
   # ── Windows ────────────────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_DIR }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Show workspace
+        run: ls -la
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -48,16 +48,17 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
+          cd ${{ env.PROJECT_DIR }}
           pyinstaller jieqin_game_windows.spec
 
       - name: Verify output
         run: |
-          if (Test-Path "dist\jieqin_game\jieqin_game.exe") {
+          if (Test-Path "${{ env.PROJECT_DIR }}\dist\jieqin_game\jieqin_game.exe") {
               Write-Host "Build successful"
-              Get-Item "dist\jieqin_game\jieqin_game.exe" | Select-Object Name, Length
+              Get-Item "${{ env.PROJECT_DIR }}\dist\jieqin_game\jieqin_game.exe" | Select-Object Name, Length
           } else {
               Write-Host "ERROR: exe not found"
-              Get-ChildItem dist -Recurse -File | Select-Object FullName
+              Get-ChildItem "${{ env.PROJECT_DIR }}\dist" -Recurse -File | Select-Object FullName
               exit 1
           }
 
@@ -65,19 +66,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-windows
-          path: project/project/dist/jieqin_game/
+          path: ${{ env.PROJECT_DIR }}/dist/jieqin_game/
           retention-days: 30
 
   # ── macOS x86_64 ──────────────────────────────────────────────────
   build-macos-x86:
     runs-on: macos-13
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_DIR }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Show workspace
+        run: ls -la
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -100,18 +101,19 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
+          cd ${{ env.PROJECT_DIR }}
           pyinstaller jieqin_game_macos.spec
 
       - name: Verify output
         run: |
-          if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
+          if [ -d "${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app" ]; then
             echo "Build successful"
-            ls -la "dist/${{ env.APP_NAME }}.app"
-            SIZE=$(du -sh "dist/${{ env.APP_NAME }}.app" | cut -f1)
+            ls -la "${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app"
+            SIZE=$(du -sh "${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app" | cut -f1)
             echo "App size: $SIZE"
           else
             echo "ERROR: App not found"
-            ls -la dist/
+            ls -la "${{ env.PROJECT_DIR }}/dist/"
             exit 1
           fi
 
@@ -119,19 +121,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-macos-x86_64
-          path: project/project/dist/${{ env.APP_NAME }}.app
+          path: ${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app
           retention-days: 30
 
   # ── macOS arm64 ───────────────────────────────────────────────────
   build-macos-arm:
     runs-on: macos-14
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_DIR }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Show workspace
+        run: ls -la
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -154,18 +156,19 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
+          cd ${{ env.PROJECT_DIR }}
           pyinstaller jieqin_game_macos.spec
 
       - name: Verify output
         run: |
-          if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
+          if [ -d "${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app" ]; then
             echo "Build successful"
-            ls -la "dist/${{ env.APP_NAME }}.app"
-            SIZE=$(du -sh "dist/${{ env.APP_NAME }}.app" | cut -f1)
+            ls -la "${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app"
+            SIZE=$(du -sh "${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app" | cut -f1)
             echo "App size: $SIZE"
           else
             echo "ERROR: App not found"
-            ls -la dist/
+            ls -la "${{ env.PROJECT_DIR }}/dist/"
             exit 1
           fi
 
@@ -173,7 +176,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-macos-arm64
-          path: project/project/dist/${{ env.APP_NAME }}.app
+          path: ${{ env.PROJECT_DIR }}/dist/${{ env.APP_NAME }}.app
           retention-days: 30
 
   # ── macOS Universal (Intel + Apple Silicon) ────────────────────────
